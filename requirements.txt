@@ -1,0 +1,8 @@
+Django>=5.0,<5.1
+djangorestframework
+django-cors-headers
+celery
+redis
+psycopg2-binary
+dj-database-url
+gunicorn
