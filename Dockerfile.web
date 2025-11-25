@@ -1,0 +1,22 @@
+# Dockerfile.web
+
+# 가벼운 Python 기반 이미지 사용
+FROM python:3.11-slim
+
+# 필요한 시스템 도구 (DB 클라이언트, Git)
+RUN apt-get update && apt-get install -y \
+    git \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# 파이썬 의존성 설치
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 소스 코드 복사
+COPY . .
+
+# Web 서버 실행 (Gunicorn)
+CMD ["gunicorn", "backend.wsgi:application", "--bind", "0.0.0.0:$PORT"]
