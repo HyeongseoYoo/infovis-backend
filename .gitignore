@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual env
+venv/
+.venv/
+
+# Django
+db.sqlite3
+/media/
+staticfiles/
+
+# Env / secrets
+.env
+.env.*
+
+# Tests / tools
+.mypy_cache/
+.pytest_cache/
+
+# Editor / IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
