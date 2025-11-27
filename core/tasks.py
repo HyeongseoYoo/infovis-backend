@@ -13,7 +13,8 @@ import os # 파일 경로 조작을 위해 추가
 
 CLANG_CG_SCRIPT = os.path.join(
     settings.BASE_DIR,
-    'run_clang_cg.sh',
+    'scripts',
+    'clang_cg.sh',
 )
 
 def get_repo_path(task_id):
@@ -34,21 +35,30 @@ def _execute_analysis(task_id, step_name, command_list, output_filename, path_fi
         if not repo_dir.exists():
              raise FileNotFoundError(f"Repository not found. Run CLONING first.")
 
+        is_othertool = step_name.upper() == 'CPPLINT' or step_name.upper() == 'LIZARD'
+
+        if is_othertool:
+            v_check = False
+            v_stderr = subprocess.STDOUT
+        else:
+            v_check = True
+            v_stderr = subprocess.PIPE
+
         # -- 실제 분석 명령어 실행 --
         # stdout을 파일로 리다이렉션하여 원시 데이터 저장
         with open(output_filepath, 'w') as f:
              subprocess.run(
                 command_list, 
                 cwd=str(repo_dir),
-                check=True, 
+                check=v_check, 
                 stdout=f, # 결과를 파일로 출력
-                stderr=subprocess.PIPE, # 에러는 파이프로 받음
+                stderr=v_stderr, # 에러는 파이프로 받음
                 text=True
              )
         
         # 파일 경로 저장 및 상태 업데이트
-        setattr(task, path_field, output_filename) # ex: task.infer_path = "infer_result.txt"
-        task.status = 'RUNNING' # 분석 성공 후에도 다음 단계가 있으므로 RUNNING 유지
+        setattr(task, path_field, output_filename)
+        task.status = 'RUNNING'
         
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         task.status = 'FAILED'
@@ -136,8 +146,8 @@ def run_lizard_task(task_id):
     return _execute_analysis(
         task_id, 
         'LIZARD', 
-        ['lizard', str(repo_dir), '-C', 'csv'], # CSV 출력 옵션 예시
-        'lizard_result.csv', 
+        ['lizard', '-o', 'lizard_result.csv'],
+        'lizard_result.txt', 
         'lizard_path'
     )
 
