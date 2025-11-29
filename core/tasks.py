@@ -21,7 +21,7 @@ def get_repo_path(task_id):
     return Path(f'/tmp/analysis_{task_id}')
 
 # 모든 분석 작업을 처리하는 공통 헬퍼 함수
-def _execute_analysis(task_id, step_name, command_list, output_filename, path_field):
+def _execute_analysis(task_id, step_name, command_list, output_filename, path_field, preprocessing=None):
     task = get_object_or_404(AnalysisTask, pk=task_id)
     repo_dir = get_repo_path(task_id)
     output_filepath = repo_dir / output_filename # 결과 파일 경로
@@ -32,32 +32,46 @@ def _execute_analysis(task_id, step_name, command_list, output_filename, path_fi
     task.save(update_fields=['status', 'current_step'])
     
     try:
-        if not repo_dir.exists():
-             raise FileNotFoundError(f"Repository not found. Run CLONING first.")
+        # if not repo_dir.exists():
+        #      raise FileNotFoundError(f"Repository not found. Run CLONING first.")
 
-        is_othertool = step_name.upper() == 'CPPLINT' or step_name.upper() == 'LIZARD'
+        # is_othertool = step_name.upper() == 'CPPLINT' or step_name.upper() == 'LIZARD'
 
-        if is_othertool:
-            v_check = False
-            v_stderr = subprocess.STDOUT
-        else:
-            v_check = True
-            v_stderr = subprocess.PIPE
+        # if is_othertool:
+        #     v_check = False
+        #     v_stderr = subprocess.STDOUT
+        # else:
+        #     v_check = True
+        #     v_stderr = subprocess.PIPE
 
-        # -- 실제 분석 명령어 실행 --
-        # stdout을 파일로 리다이렉션하여 원시 데이터 저장
-        with open(output_filepath, 'w') as f:
-             subprocess.run(
-                command_list, 
-                cwd=str(repo_dir),
-                check=v_check, 
-                stdout=f, # 결과를 파일로 출력
-                stderr=v_stderr, # 에러는 파이프로 받음
-                text=True
-             )
+        # # -- 실제 분석 명령어 실행 --
+        # # stdout을 파일로 리다이렉션하여 원시 데이터 저장
+        # with open(output_filepath, 'w') as f:
+        #      subprocess.run(
+        #         command_list, 
+        #         cwd=str(repo_dir),
+        #         check=v_check, 
+        #         stdout=f, # 결과를 파일로 출력
+        #         stderr=v_stderr, # 에러는 파이프로 받음
+        #         text=True
+        #      )
         
-        # 파일 경로 저장 및 상태 업데이트
-        setattr(task, path_field, output_filename)
+        # # 파일 경로 저장 및 상태 업데이트
+        # setattr(task, path_field, output_filename)
+
+        if preprocessing is not None:
+            script_path = Path(settings.BASE_DIR) / "core" / "script" / preprocessing
+            preprocess_cmd = [
+                'python3',
+                str(script_path),
+            ]
+            subprocess.run(
+                preprocess_cmd,
+                cwd=str(repo_dir),
+                check=True,
+                text=True
+            )
+
         task.status = 'RUNNING'
         
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
@@ -110,7 +124,8 @@ def run_clang_build_task(task_id):
         'CLANG', 
         [CLANG_CG_SCRIPT],
         'cg.txt', 
-        'clang_path'
+        'clang_path',
+        'cg_preprocessing.py'
     )
     
 # --- Step 2: Infer Task ---
@@ -122,7 +137,8 @@ def run_infer_task(task_id):
         'INFER', 
         ['infer', 'run', '--', 'make'], # make 실행은 repo_dir 내부에서 
         'infer_result.txt', 
-        'infer_path'
+        'infer_path',
+        'infer_preprocessing.py'
     )
 
 # --- Step 3: Cpplint Task ---
@@ -135,7 +151,8 @@ def run_cpplint_task(task_id):
         'CPPLINT', 
         ['cpplint', '--recursive', str(repo_dir)], 
         'cpplint_result.txt', 
-        'cpplint_path'
+        'cpplint_path',
+        'cpplint_preprocessing.py'
     )
 
 # --- Step 4: Lizard Task ---
@@ -148,7 +165,8 @@ def run_lizard_task(task_id):
         'LIZARD', 
         ['lizard', '-o', 'lizard_result.csv'],
         'lizard_result.txt', 
-        'lizard_path'
+        'lizard_path',
+        'lizard_preprocessing.py'
     )
 
 
