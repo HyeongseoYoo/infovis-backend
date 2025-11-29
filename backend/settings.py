@@ -109,7 +109,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'postgres',
         'USER': 'postgres',
-        'PASSWORD': '0918',
+        'PASSWORD': 'PASSWORD',
         'HOST': 'localhost', # WSL에서 Docker 컨테이너에 접근
         'PORT': '5432',
     }
