@@ -171,6 +171,21 @@ def run_lizard_task(task_id):
 
 
 # --- Step 5: Preprocessing Task ---
+def run_script(script_name, repo_dir):
+    base_dir = Path(settings.BASE_DIR)
+
+    script_path = base_dir / "core" / "script" / script_name
+    if not script_path.is_file():
+        raise FileNotFoundError(f"Preprocessing script not found: {script_path}")
+
+    subprocess.run(
+        ["python3", str(script_path)],
+        cwd=str(repo_dir),
+        check=True,
+        text=True,
+    )
+
+
 @shared_task
 def run_preprocessing_task(task_id):
     task = get_object_or_404(AnalysisTask, pk=task_id)
@@ -181,33 +196,19 @@ def run_preprocessing_task(task_id):
     task.save(update_fields=['status', 'current_step'])
     
     try:
-        final_json_data = {}
 
-        # 1. Lizard CSV 데이터 읽기 및 JSON 변환
-        lizard_data = []
-        lizard_file = repo_dir / task.lizard_path
-        with open(lizard_file, 'r', newline='') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                lizard_data.append(dict(row))
-        final_json_data['lizard'] = lizard_data
+        # Filtering Function
+        run_script("cg_filter.py", repo_dir)
 
-        # 2. Infer TXT 데이터 읽기 및 JSON 변환
-        # (실제 Infer TXT 파싱 로직 필요)
-        infer_data = (repo_dir / task.infer_path).read_text()
-        final_json_data['infer'] = {"raw_output": infer_data.splitlines()}
-
-        # 3. Clang Call Graph TXT (JSON) 파일 읽기
-        # (txt 파일이지만 내용이 JSON이라고 가정)
-        cg_json_str = (repo_dir / task.clang_path).read_text()
-        final_json_data['call_graph'] = json.loads(cg_json_str)
+        # Add Function Data and Merging Warnings
+        run_script("cpplint_add_function.py", repo_dir)
+        run_script("merge_warnings.py", repo_dir)
         
-        # 4. Cpplint TXT 데이터 읽기
-        # (실제 Cpplint TXT 파싱 로직 필요)
-        cpplint_data = (repo_dir / task.cpplint_path).read_text()
-        final_json_data['cpplint'] = {"raw_output": cpplint_data.splitlines()}
-        
+        # Add Warning Data and Filtering
+        run_script("lizard_filter.py", repo_dir)
+
         # 최종 상태 저장 및 정리
+        final_json_data = {}
         task.result_data = final_json_data
         task.status = 'COMPLETED'
         
@@ -216,8 +217,8 @@ def run_preprocessing_task(task_id):
         task.error_message = f"Preprocessing Failed: {str(e)}"
 
     finally:
-        # **필수**: 모든 작업 완료 후, 임시 디렉토리 삭제
-        if repo_dir.exists():
-            shutil.rmtree(repo_dir)
+        # 작업 완료 후 디렉토리 정리 !!! 살려야됨!!
+        # if repo_dir.exists():
+        #     shutil.rmtree(repo_dir)
         
         task.save()
