@@ -45,6 +45,7 @@ RUN VERSION=1.2.0 && \
 
 # 4. 소스 복사
 COPY . /code
+RUN chmod +x /code/scripts/*.sh
 
 # 5. 기본 CMD – 실제 실행은 fly.toml의 [processes]에서 override 가능
 CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn --bind :8000 --workers 2 backend.wsgi"]
