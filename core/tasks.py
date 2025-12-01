@@ -20,6 +20,14 @@ CLANG_CG_SCRIPT = os.path.join(
 def get_repo_path(task_id):
     return Path(f'/tmp/analysis_{task_id}')
 
+def ensure_empty_json(repo_dir: Path, filename: str):
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    json_path = repo_dir / filename
+    
+    if not json_path.exists():
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump([], f)
+
 # 모든 분석 작업을 처리하는 공통 헬퍼 함수
 def _execute_analysis(task_id, step_name, command_list, output_filename, path_field, preprocessing=None):
     task = get_object_or_404(AnalysisTask, pk=task_id)
@@ -31,33 +39,33 @@ def _execute_analysis(task_id, step_name, command_list, output_filename, path_fi
     task.current_step = step_name.upper()
     task.save(update_fields=['status', 'current_step'])
     
+    is_othertool = step_name.upper() == 'CPPLINT' or step_name.upper() == 'LIZARD'
+
     try:
-        # if not repo_dir.exists():
-        #      raise FileNotFoundError(f"Repository not found. Run CLONING first.")
+        if not repo_dir.exists():
+             raise FileNotFoundError(f"Repository not found. Run CLONING first.") 
 
-        # is_othertool = step_name.upper() == 'CPPLINT' or step_name.upper() == 'LIZARD'
+        if is_othertool:
+            v_check = False
+            v_stderr = subprocess.STDOUT
+        else:
+            v_check = True
+            v_stderr = subprocess.PIPE
 
-        # if is_othertool:
-        #     v_check = False
-        #     v_stderr = subprocess.STDOUT
-        # else:
-        #     v_check = True
-        #     v_stderr = subprocess.PIPE
-
-        # # -- 실제 분석 명령어 실행 --
-        # # stdout을 파일로 리다이렉션하여 원시 데이터 저장
-        # with open(output_filepath, 'w') as f:
-        #      subprocess.run(
-        #         command_list, 
-        #         cwd=str(repo_dir),
-        #         check=v_check, 
-        #         stdout=f, # 결과를 파일로 출력
-        #         stderr=v_stderr, # 에러는 파이프로 받음
-        #         text=True
-        #      )
+        # -- 실제 분석 명령어 실행 --
+        # stdout을 파일로 리다이렉션하여 원시 데이터 저장
+        with open(output_filepath, 'w') as f:
+             subprocess.run(
+                command_list, 
+                cwd=str(repo_dir),
+                check=v_check, 
+                stdout=f, # 결과를 파일로 출력
+                stderr=v_stderr, # 에러는 파이프로 받음
+                text=True
+             )
         
-        # # 파일 경로 저장 및 상태 업데이트
-        # setattr(task, path_field, output_filename)
+        # 파일 경로 저장 및 상태 업데이트
+        setattr(task, path_field, output_filename)
 
         if preprocessing is not None:
             script_path = Path(settings.BASE_DIR) / "core" / "script" / preprocessing
@@ -131,7 +139,9 @@ def run_clang_build_task(task_id):
 # --- Step 2: Infer Task ---
 @shared_task
 def run_infer_task(task_id):
-    # Infer 결과를 'infer_result.txt' 파일로 저장
+    repo_dir = get_repo_path(task_id)
+    ensure_empty_json(repo_dir, 'infer_result.json')
+
     return _execute_analysis(
         task_id, 
         'INFER', 
@@ -145,7 +155,8 @@ def run_infer_task(task_id):
 @shared_task
 def run_cpplint_task(task_id):
     repo_dir = get_repo_path(task_id)
-    # Cpplint 결과를 'cpplint_result.txt' 파일로 저장
+    ensure_empty_json(repo_dir, 'cpplint_result.json')
+
     return _execute_analysis(
         task_id, 
         'CPPLINT', 
