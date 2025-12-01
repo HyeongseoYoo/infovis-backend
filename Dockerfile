@@ -1,11 +1,13 @@
-ARG PYTHON_VERSION=3.10-slim
+# Dockerfile (통합용)
 
-FROM python:${PYTHON_VERSION}
+FROM ubuntu:22.04
 
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
 
-# install psycopg2 dependencies.
+WORKDIR /code
+
+# 1. 시스템 패키지 설치 (기존 worker Dockerfile에서 쓰던 거 + web에 필요했던 것들)
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
@@ -24,22 +26,16 @@ RUN apt-get update && apt-get install -y \
     jq \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /code
+# python / pip alias (있으면 편함)
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
+    update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
 
-WORKDIR /code
+# 2. Python 의존성
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# clang/clang++ 심볼릭 링크 설정
-RUN ln -s /usr/bin/clang-14 /usr/bin/clang && \
-    ln -s /usr/bin/clang++-14 /usr/bin/clang++
-
-COPY requirements.txt /tmp/requirements.txt
-RUN set -ex && \
-    pip install --upgrade pip && \
-    pip install -r /tmp/requirements.txt && \
-    rm -rf /root/.cache/
-
+# 3. cpplint, lizard, infer 설치
 RUN pip install cpplint lizard
-
 RUN VERSION=1.2.0 && \
     wget -q https://github.com/facebook/infer/releases/download/v${VERSION}/infer-linux-x86_64-v${VERSION}.tar.xz && \
     tar -xJf infer-linux-x86_64-v${VERSION}.tar.xz && \
@@ -47,9 +43,8 @@ RUN VERSION=1.2.0 && \
     ln -sf /opt/infer/bin/infer /usr/local/bin/infer && \
     rm infer-linux-x86_64-v${VERSION}.tar.xz
 
-
+# 4. 소스 복사
 COPY . /code
 
-EXPOSE 8000
-
+# 5. 기본 CMD – 실제 실행은 fly.toml의 [processes]에서 override 가능
 CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn --bind :8000 --workers 2 backend.wsgi"]
