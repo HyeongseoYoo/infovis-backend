@@ -4,6 +4,7 @@
 
 # 에러 발생 시 즉시 종료하고, 파이프라인의 오류도 즉시 종료하도록 설정
 set -euo pipefail
+set -x
 
 REPO_DIR=$(pwd)
 NPROCS=$(nproc)

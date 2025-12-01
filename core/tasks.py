@@ -83,7 +83,11 @@ def _execute_analysis(task_id, step_name, command_list, output_filename, path_fi
         
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         task.status = 'FAILED'
-        task.error_message = f"{step_name} Failed: {str(e)}"
+        if isinstance(e, subprocess.CalledProcessError):
+            err_detail = e.stderr or ''
+            task.error_message = f"{step_name} Failed: {str(e)}\n{err_detail}"
+        else:
+            task.error_message = f"{step_name} Failed: {str(e)}"
         task.save()
         return 'FAILED'
     
