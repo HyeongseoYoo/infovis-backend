@@ -80,14 +80,14 @@ def _execute_analysis(task_id, step_name, command_list, output_filename, path_fi
                 text=True
             )
 
-        task.status = 'RUNNING'
         
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         task.status = 'FAILED'
         task.error_message = f"{step_name} Failed: {str(e)}"
         task.save()
         return 'FAILED'
-        
+    
+    task.status = 'COMPLETED'
     task.save()
     return 'SUCCESS'
 
@@ -112,6 +112,7 @@ def start_cloning_task(task_id, github_url):
             text=True
         )
         success = True
+        task.status = 'COMPLETED'
 
     except subprocess.CalledProcessError as e:
         task.status = 'FAILED'
