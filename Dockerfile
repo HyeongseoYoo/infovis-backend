@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     git \
     wget \
+    clang \
+    llvm \
     cmake \
     curl \
     xz-utils \
