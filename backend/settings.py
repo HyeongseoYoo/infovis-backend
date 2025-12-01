@@ -22,12 +22,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-z27q1-#6p7y#!#&asl3l+bu71o5c1ivl8#t8y(n&gilcir(_oh'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-secret-key-change-this')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', '') != 'False'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+
+FLY_APP_NAME = os.environ.get('FLY_APP_NAME')
+if FLY_APP_NAME:
+    ALLOWED_HOSTS.append(f'{FLY_APP_NAME}.fly.dev')
 
 
 # Application definition
@@ -59,7 +63,7 @@ MIDDLEWARE = [
 # 개발 단계에서는 localhost를 허용하고, 배포 시 Vercel 도메인으로 변경해야 합니다.
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",      # 개발 환경 (프론트엔드가 3000 포트에서 실행될 경우)
-    # "https://your-vercel-app.vercel.app", # 실제 Vercel 배포 도메인
+    "https://vis-frontend-still-test.vercel.app", # 실제 Vercel 배포 도메인
 ]
 
 ROOT_URLCONF = 'backend.urls'
@@ -97,22 +101,14 @@ CELERY_RESULT_SERIALIZER = 'json'
 
 
 DATABASES = {
-    # 'default': {
-    #     'ENGINE': 'django.db.backends.sqlite3',
-    #     'NAME': BASE_DIR / 'db.sqlite3',
-    # }
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
     # 'default': dj_database_url.config(
     #     default=os.environ.get('DATABASE_URL', 'sqlite:///db.sqlite3'),
     #     conn_max_age=600 # 커넥션 최대 유지 시간
     # )
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'postgres',
-        'USER': 'postgres',
-        'PASSWORD': 'PASSWORD',
-        'HOST': 'localhost', # WSL에서 Docker 컨테이너에 접근
-        'PORT': '5432',
-    }
 }
 
 
@@ -151,6 +147,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'static'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
