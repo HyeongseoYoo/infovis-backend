@@ -99,16 +99,16 @@ CELERY_TASK_ALWAYS_EAGER = True
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
-
+DEFAULT_SQLITE_URL = f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-    # 'default': dj_database_url.config(
-    #     default=os.environ.get('DATABASE_URL', 'sqlite:///db.sqlite3'),
-    #     conn_max_age=600 # 커넥션 최대 유지 시간
-    # )
+    # 'default': {
+    #     'ENGINE': 'django.db.backends.sqlite3',
+    #     'NAME': BASE_DIR / 'db.sqlite3',
+    # }
+    'default': dj_database_url.config(
+        default=os.environ.get('DATABASE_URL', DEFAULT_SQLITE_URL),
+        conn_max_age=600
+    )
 }
 
 

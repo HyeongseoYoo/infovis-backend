@@ -24,4 +24,4 @@ COPY . /code
 
 EXPOSE 8000
 
-CMD ["gunicorn","--bind",":8000","--workers","2","backend.wsgi"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn --bind :8000 --workers 2 backend.wsgi"]
