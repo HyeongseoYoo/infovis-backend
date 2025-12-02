@@ -19,7 +19,10 @@ CLANG_CG_SCRIPT = os.path.join(
 )
 
 def get_repo_path(task_id):
-    return Path(f'/tmp/analysis_{task_id}')
+    base_dir.mkdir(parents=True, exist_ok=True)
+    task_dir = base_dir / f"analysis_{task_id}"
+    task_dir.mkdir(parents=True, exist_ok=True)
+    return task_dir
 
 def ensure_empty_json(repo_dir: Path, filename: str):
     repo_dir.mkdir(parents=True, exist_ok=True)
