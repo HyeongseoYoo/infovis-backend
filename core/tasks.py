@@ -42,7 +42,8 @@ def _execute_analysis(task_id, step_name, command_list, output_filename, path_fi
     # 상태 업데이트: RUNNING으로 설정하고 현재 단계 지정
     task.status = 'RUNNING'
     task.current_step = step_name.upper()
-    task.save(update_fields=['status', 'current_step'])
+    task.error_message = None
+    task.save(update_fields=['status', 'current_step', 'error_message'])
     
     is_othertool = step_name.upper() == 'CPPLINT' or step_name.upper() == 'LIZARD'
 
@@ -230,8 +231,6 @@ def run_cpplint_task(task_id):
 # --- Step 4: Lizard Task ---
 @shared_task
 def run_lizard_task(task_id):
-    repo_dir = get_repo_path(task_id)
-    # Lizard 결과를 'lizard_result.csv' 파일로 저장
     return _execute_analysis(
         task_id, 
         'LIZARD', 
@@ -265,32 +264,66 @@ def run_preprocessing_task(task_id):
 
     task.status = 'RUNNING'
     task.current_step = 'PREPROCESSING'
-    task.save(update_fields=['status', 'current_step'])
+    task.error_message = None
+    task.save(update_fields=['status', 'current_step', 'error_message'])
     
-    try:
+    errors: list[str] = []
 
-        # Filtering Function
-        run_script("cg_filter.py", repo_dir)
+    def safe_run(script_name: str, step_label: str):
+        try:
+            run_script(script_name, repo_dir)
+        except Exception as e:
+            errors.append(f"{step_label}: {e}")
 
-        # Add Function Data and Merging Warnings
-        run_script("cpplint_add_function.py", repo_dir)
-        run_script("merge_warnings.py", repo_dir)
-        
-        # Add Warning Data and Filtering
-        run_script("lizard_filter.py", repo_dir)
+    # 1) Filtering Function
+    safe_run("cg_filter.py", "[1/4] cg_filter")
 
-        # 최종 상태 저장 및 정리
+    # 2) Add Function Data and Merge Warnings
+    safe_run("cpplint_add_function.py", "[2/4] cpplint_add_function")
+    safe_run("merge_warnings.py", "[3/4] merge_warnings")
+
+    # 3) Add Warning Data and Filtering
+    safe_run("lizard_filter.py", "[4/4] lizard_filter")
+
+    # 4) Check error
+    if errors:
+        task.status = 'FAILED'
+        task.error_message = "Preprocessing encountered errors:\n" + "\n".join(errors)
+    else:
         final_json_data = {}
         task.result_data = final_json_data
         task.status = 'COMPLETED'
-        
+
+    task.save()
+
+@shared_task
+def run_cleanup_task(task_id):
+    """
+    /data(or /tmp)/analysis_<task_id> 디렉토리를 삭제하는 Celery 작업.
+    - 분석 결과 파일을 다 쓴 뒤, 마지막 단계에서 호출해 사용.
+    - Task의 status는 기본적으로 건드리지 않고,
+      실패했을 때만 FAILED + error_message를 남긴다.
+    """
+    task = get_object_or_404(AnalysisTask, pk=task_id)
+    repo_dir = get_repo_path(task_id)
+
+    task.status = 'RUNNING'
+    task.current_step = 'CLEANUP'
+    task.error_message = None
+    task.save(update_fields=['status', 'current_step', 'error_message'])
+
+    try:
+        if repo_dir.exists():
+            shutil.rmtree(repo_dir)
+        task.status = 'COMPLETED'
+
     except Exception as e:
         task.status = 'FAILED'
-        task.error_message = f"Preprocessing Failed: {str(e)}"
-
+        msg = f"Cleanup Failed for analysis_{task_id}: {e}"
+        if task.error_message:
+            task.error_message += f"\n{msg}"
+        else:
+            task.error_message = msg
     finally:
-        # 작업 완료 후 디렉토리 정리 !!! 살려야됨!!
-        # if repo_dir.exists():
-        #     shutil.rmtree(repo_dir)
-        
         task.save()
+        return {"task_id": task_id, "status": task.status}

@@ -10,7 +10,7 @@ from .models import AnalysisTask
 from .tasks import (
     start_cloning_task, run_infer_task, run_cpplint_task, 
     run_lizard_task, run_clang_build_task, run_preprocessing_task,
-    load_task_json, build_task_zip,
+    load_task_json, build_task_zip, run_cleanup_task
 )
 
 # --- 1. Serializers ---
@@ -75,6 +75,7 @@ class RunAnalysisStepView(views.APIView):
             'cpplint': run_cpplint_task,
             'lizard': run_lizard_task,
             'preprocess': run_preprocessing_task,
+            'cleanup': run_cleanup_task,
         }
 
         if step_name not in task_map:

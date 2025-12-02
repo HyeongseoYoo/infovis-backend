@@ -18,6 +18,7 @@ class AnalysisTask(models.Model):
         ('CPPLINT', 'Cpplint 분석'),
         ('LIZARD', 'Lizard 분석'),
         ('PREPROCESSING', '전처리'),
+        ('CLEANUP', 'Repo 삭제')
     ]
     
     github_url = models.URLField(max_length=500)
