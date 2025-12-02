@@ -19,6 +19,7 @@ CLANG_CG_SCRIPT = os.path.join(
 )
 
 def get_repo_path(task_id):
+    base_dir = Path("/data")
     base_dir.mkdir(parents=True, exist_ok=True)
     task_dir = base_dir / f"analysis_{task_id}"
     task_dir.mkdir(parents=True, exist_ok=True)
