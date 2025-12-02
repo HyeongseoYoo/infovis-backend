@@ -7,9 +7,10 @@ from .models import AnalysisTask
 import subprocess
 import shutil
 import json
-import csv
 from pathlib import Path
-import os # 파일 경로 조작을 위해 추가
+import os
+import io
+import zipfile
 
 CLANG_CG_SCRIPT = os.path.join(
     settings.BASE_DIR,
@@ -94,6 +95,57 @@ def _execute_analysis(task_id, step_name, command_list, output_filename, path_fi
     task.status = 'COMPLETED'
     task.save()
     return 'SUCCESS'
+
+# 결과 json 파일 1개 읽는 헬퍼 함수
+def load_task_json(task_id: int, filename: str):
+    """
+    COMPLETED 상태의 Task에 대해 /tmp/analysis_<task_id>/<filename> 을 읽어
+    파싱된 JSON 객체를 반환합니다.
+    """
+    # Task 존재 여부만 확인 (status 필터 X)
+    get_object_or_404(AnalysisTask, pk=task_id)
+
+    repo_dir = get_repo_path(task_id)
+    file_path = repo_dir / filename
+
+    if not file_path.is_file():
+        raise FileNotFoundError(f"{filename} not found for task {task_id}")
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    return data
+
+# 결과 josn 파일을 zip 하는 헬퍼 함수
+def build_task_zip(task_id: int, filenames=None) -> bytes:
+    """
+    COMPLETED 상태의 Task에 대해 /tmp/analysis_<task_id> 안의
+    주어진 filenames들을 하나의 ZIP 바이트로 만들어 반환합니다.
+    """
+    # Task 존재 여부만 확인
+    get_object_or_404(AnalysisTask, pk=task_id)
+
+    repo_dir = get_repo_path(task_id)
+
+    if filenames is None:
+        filenames = ["cg_filtered.json", "warnings.json", "functions.json"]
+
+    memory_file = io.BytesIO()
+    added_any = False
+
+    with zipfile.ZipFile(memory_file, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for filename in filenames:
+            file_path = repo_dir / filename
+            if file_path.is_file():
+                zf.write(file_path, arcname=filename)
+                added_any = True
+
+    if not added_any:
+        raise FileNotFoundError(f"No result files found for task {task_id}")
+    
+    memory_file.seek(0)
+    return memory_file.getvalue()
+
 
 # --- Step 0: Git Clone Task ---
 @shared_task

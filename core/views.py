@@ -1,14 +1,16 @@
 # core/views.py
-
 from rest_framework import views, status, generics
 from rest_framework.response import Response
 from rest_framework import serializers
 from django.shortcuts import get_object_or_404
+from django.http import HttpResponse
+import json
 
 from .models import AnalysisTask
 from .tasks import (
     start_cloning_task, run_infer_task, run_cpplint_task, 
-    run_lizard_task, run_clang_build_task, run_preprocessing_task
+    run_lizard_task, run_clang_build_task, run_preprocessing_task,
+    load_task_json, build_task_zip,
 )
 
 # --- 1. Serializers ---
@@ -102,8 +104,7 @@ class TaskResultView(generics.RetrieveAPIView):
     Task ID로 최종 분석 결과 (result_data)를 조회합니다.
     COMPLETED 상태인 Task만 반환합니다.
     """
-    # 기본 쿼리셋은 'COMPLETED' 상태인 Task만 포함합니다.
-    queryset = AnalysisTask.objects.filter(status='COMPLETED')
+    queryset = AnalysisTask.objects.all()
     serializer_class = TaskResultSerializer
     
     def get_object(self):
@@ -111,3 +112,71 @@ class TaskResultView(generics.RetrieveAPIView):
         queryset = self.get_queryset()
         obj = get_object_or_404(queryset, pk=self.kwargs['pk'])
         return obj
+    
+# 4-1. 결과 json 각각 전달
+class TaskFileJSONView(views.APIView):
+    """
+    /tmp/analysis_<task_id>/<filename> 을 읽어 JSON으로 반환하는 공통 View.
+    자식 클래스에서 filename만 override.
+    """
+    filename: str | None = None
+
+    def get(self, request, pk, *args, **kwargs):
+        if self.filename is None:
+            return Response(
+                {"detail": "filename is not configured."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        try:
+            data = load_task_json(pk, self.filename)
+        except FileNotFoundError as e:
+            # Task 없거나, 파일 없을 때 둘 다 여기서 처리 가능
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except json.JSONDecodeError:
+            return Response(
+                {"detail": f"{self.filename} is not a valid JSON file."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class TaskCGView(TaskFileJSONView):
+    filename = "cg_filtered.json"
+
+class TaskWarningsView(TaskFileJSONView):
+    filename = "warnings.json"
+
+class TaskFunctionsView(TaskFileJSONView):
+    filename = "functions.json"
+
+# 4-2. 결과 json zip file download
+class TaskZipDownloadView(views.APIView):
+    """
+    /tmp/analysis_<task_id> 내의
+      - cg_filtered.json
+      - warnings.json
+      - functions.json
+    세 파일 중, 존재하는 것만 ZIP으로 묶어 내려줌.
+    세 개 모두 없으면 404.
+    """
+
+    filenames = ["cg_filtered.json", "warnings.json", "functions.json"]
+
+    def get(self, request, pk, *args, **kwargs):
+        try:
+            zip_bytes = build_task_zip(pk, self.filenames)
+        except FileNotFoundError as e:
+            # Task가 없거나, 결과 파일이 아예 없는 경우
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        response = HttpResponse(zip_bytes, content_type="application/zip")
+        response["Content-Disposition"] = f'attachment; filename="analysis_{pk}.zip"'
+        return response
