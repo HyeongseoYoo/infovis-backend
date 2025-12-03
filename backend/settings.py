@@ -62,7 +62,8 @@ MIDDLEWARE = [
 # CORS 설정 (Vercel 프론트엔드 도메인 허용)
 # 개발 단계에서는 localhost를 허용하고, 배포 시 Vercel 도메인으로 변경해야 합니다.
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",      # 개발 환경 (프론트엔드가 3000 포트에서 실행될 경우)
+    "http://localhost:3000",   # 개발 환경 (프론트엔드가 3000 포트에서 실행될 경우)
+    "http://localhost:5173",
     "https://vis-frontend-still-test.vercel.app", # 실제 Vercel 배포 도메인
 ]
 
