@@ -25,16 +25,26 @@ cd build
 # CMAKE_EXPORT_COMPILE_COMMANDS=ON을 통해 compile_commands.json 생성
 cmake -DCMAKE_C_COMPILER=clang -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
 
+if [ ! -f "compile_commands.json" ]; then
+    echo "에러: compile_commands.json이 'build/' 폴더에 생성되지 않았습니다. CMake 설정 실패." >&2
+    exit 1
+fi
+
 echo "2. Running CMake Build..."
 # Build 실행 (cmake 빌드는 CMAKE_EXPORT_COMPILE_COMMANDS가 설정되어 있으면 
 # 실제로 빌드가 완료되지 않아도 compile_commands.json을 생성할 수 있습니다.
 # 하지만 Bitcode 생성에 필요한 모든 파일이 준비되도록 전체 빌드를 시도합니다.)
-cmake --build . -j"$NPROCS"
+# cmake --build . -j"$NPROCS"
 
-if [ ! -f "compile_commands.json" ]; then
-    echo "에러: compile_commands.json이 'build/' 폴더에 생성되지 않았습니다. Clang 빌드 실패." >&2
-    exit 1
+if ! cmake --build . -j"$NPROCS"; then
+    echo "[WARN] CMake build failed (아마 링크 단계에서 실패했을 수 있음)." >&2
+    echo "[WARN] call graph 추출에는 compile_commands.json만 필요하므로 계속 진행합니다." >&2
 fi
+
+# if [ ! -f "compile_commands.json" ]; then
+#     echo "에러: compile_commands.json이 'build/' 폴더에 생성되지 않았습니다. Clang 빌드 실패." >&2
+#     exit 1
+# fi
 
 # 2. Bitcode 생성
 cd "$REPO_DIR" # 리포지토리 루트로 돌아오기
